@@ -47,7 +47,7 @@
   * **verification:** unit tests prove that parent dependencies are always sorted before the targets that rely on them.
   * **master prompt:**
 
-> following the red green refactor tdd method, add a failing test in `internal/graph/graph_test.go` that provides a valid, unsorted Graph of targets and asserts that the resulting ordered array correctly places all dependencies before their dependents. then, implement a `TopologicalSort(g *Graph) ([]string, error)` function in `graph.go` using Kahn's algorithm. you must use a standard slice acting as a FIFO queue to process nodes with zero in-degree. make the test pass. keep the code clean and simple with simple inline comments. run the tests. if they pass, commit and push the code with the message "feat: implement topologial sorting using kahn's algorithm". use context7
+> following the red green refactor tdd method, add a failing test in `internal/graph/graph_test.go` that provides a valid, unsorted Graph of targets and asserts that the resulting ordered array correctly places all dependencies before their dependents. then, implement a `TopologicalSort(g *Graph) ([]string, error)` function in `graph.go`. you must use Depth First Search (DFS) and a standard slice acting as a LIFO stack. as the DFS finishes visiting a node's dependencies, push the node onto the stack. return the reversed stack as the final sorted order. make the test pass. keep the code clean and simple with simple inline comments. run the tests. if they pass, commit and push the code with the message "feat: implement topological sorting using dfs and a lifo stack". use context7
 
 ### phase 4: persistence and execution
 
