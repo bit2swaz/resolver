@@ -1,49 +1,112 @@
-# ssot: distributed build cache dependency resolver
+# SSOT: Resolver design summary
 
-## 1. project overview
-* **objective:** build a dependency resolver and task scheduler that models software build targets as a directed acyclic graph (DAG), resolves the correct execution order, and uses caching to skip redundant tasks.
-* **language:** Go
-* **primary comparisons:** cache lookups using a Hash Table vs an AVL Tree, and dependency traversal using Depth First Search vs Breadth First Search.
+## 1. Project overview
 
-## 2. core data structures and syllabus mapping
-* **dependency graph (graphs):** represents the build targets as an adjacency list. vertices are stored in an array, and edges are stored as linked lists attached to each vertex.
-* **cache registry (trees and hash tables):** stores metadata of compiled artifacts. the primary implementation is a Hash Table for O(1) lookups. the secondary implementation is an AVL Tree for O(log n) lookups to satisfy the comparison requirement.
-* **execution queues (stacks):** a LIFO stack (implemented via a Go slice) is used during the Depth First Search phase. as the search reaches the deepest dependencies, they are pushed onto the stack. popping this stack provides the final chronological build order.
+- Objective: model build targets as a directed acyclic dependency graph, compute a safe execution order, and skip redundant work through persisted caching.
+- Language: Go
+- Implemented comparison structures: hash table for primary cache lookup and AVL tree for the secondary academic comparison requirement.
 
-## 3. algorithmic workflow
-* **initialization:** load the previous cache state and dependency definitions from a local JSON file.
-* **validation and topological sort:** run Depth First Search on the graph. if a back-edge is found during traversal, throw an explicit error for a circular dependency and halt. if a node and all its descendants are successfully visited without cycles, push that node onto the LIFO stack. once the entire graph is traversed, pop all elements from the stack to yield the linear, executable build order.
-* **cache check:** query the cache registry for each target in the sorted list. if the target is unchanged and exists in the cache, mark it as cached.
-* **execution:** process uncached targets, simulate a build step, and insert their new hashes into both the Hash Table and the AVL Tree.
-* **teardown:** serialize and save the updated cache state back to the JSON file.
+## 2. Core data structures
 
-## 4. validation strategy (the 6 test cases)
-* **clean build:** an empty cache where all targets must be executed and stored.
-* **fully cached build:** no source files have changed, meaning the system resolves the graph and bypasses execution by hitting the cache.
-* **partial rebuild:** one leaf node changes, triggering a rebuild of only that node and its direct dependents.
-* **disconnected graph:** a configuration with two entirely separate build trees that schedule and build independently.
-* **missing file error:** a target references a dependency that does not exist, triggering a system error.
-* **circular dependency:** an intentional cycle is introduced to ensure the validation catches it and aborts.
+### Target
 
-## 5. report comparison points
-* **time complexity:** mathematical proofs and benchmarks showing lookup speed differences between the Hash Table and the AVL Tree.
-* **space complexity:** memory overhead comparison between the adjacency list and the cache registry structures.
-* **execution ordering:** compare the conceptual execution paths of topological sorting. contrast how a DFS-based sort (using a stack) naturally prioritizes deep, single-chain dependency paths, versus how a Kahn's-based approach (using a queue) would group tasks horizontally by dependency level.
+- Fields:
+  - `ID string`
+  - `Dependencies []string`
+  - `FileHash string`
+  - `IsCached bool`
+- Purpose: describes one build target and its dependencies.
 
-## 6. directory structure
-* **cmd/resolver/main.go:** entry point for the command line interface.
-* **internal/graph/:** contains the adjacency list, topological sort, and cycle detection logic.
-* **internal/cache/:** contains the Hash Table and AVL Tree implementations, plus the JSON persistence logic.
-* **internal/scheduler/:** contains the FIFO queue and the main build execution loop.
-* **data/:** directory to store the config and state JSON files.
+### Graph
 
-## 7. core data schemas (Go structs)
-* **Target:** struct containing ID (string), Dependencies (slice of strings), FileHash (string), and IsCached (boolean).
-* **Graph:** struct containing Vertices (slice of Target pointers) and Edges (map of string to slice of strings, representing the adjacency list).
-* **CacheState:** struct containing Artifacts (map of string to string) for JSON serialization.
-* **AVLNode:** struct containing Key (string), Hash (string), Height (int), Left (pointer to AVLNode), and Right (pointer to AVLNode).
+- Fields:
+  - `Vertices []*Target`
+  - `Edges map[string][]string`
+- Purpose: stores the target list and adjacency lists used by graph traversal.
 
-## 8. command line interface flow
-* **go run cmd/resolver/main.go init:** creates the initial empty state file and a sample build configuration file.
-* **go run cmd/resolver/main.go check:** parses the graph and runs the cycle detection without building anything.
-* **go run cmd/resolver/main.go build:** runs the full pipeline for validation, sorting, cache checking, and execution.
+### CacheState
+
+- Fields:
+  - `Artifacts map[string]string`
+- Purpose: persisted JSON cache keyed by target ID.
+
+### AVLNode
+
+- Fields:
+  - `Key string`
+  - `Hash string`
+  - `Height int`
+  - `Left *AVLNode`
+  - `Right *AVLNode`
+- Purpose: in-memory AVL tree node used for the comparison implementation.
+
+## 3. Package layout
+
+- `cmd/resolver/main.go`: application entrypoint
+- `internal/models`: shared structs
+- `internal/cache`: hash table, AVL tree, and persistence helpers
+- `internal/graph`: graph construction, cycle detection, and topological sort
+- `internal/scheduler`: end-to-end scheduler pipeline
+
+## 4. Runtime workflow
+
+1. Load targets from `data/build.json`.
+2. Load the existing cache state from `data/cache.json`.
+3. Rebuild in-memory hash table and AVL tree structures from persisted cache data.
+4. Build a graph from the configured targets.
+5. Run DFS cycle detection and stop if a circular dependency is found.
+6. Run DFS-based topological sorting to produce a dependency-safe order.
+7. Iterate over the ordered targets, checking the hash table cache first.
+8. Mark matching targets as cached; otherwise simulate execution and update the cache state.
+9. Save the updated cache state back to `data/cache.json`.
+
+## 5. Implemented algorithm details
+
+### Cycle detection
+
+- Uses depth-first search.
+- Tracks visited nodes and the current recursion path.
+- Reports an error when DFS encounters a dependency already on the current path.
+
+### Topological sorting
+
+- Uses depth-first search.
+- Appends a node only after visiting its dependencies.
+- Returns a dependency-safe order where dependencies appear before dependents.
+
+### Cache lookup
+
+- Primary lookup path: hash table for constant-time reads.
+- Secondary structure: AVL tree updated alongside the hash table for comparison purposes.
+
+## 6. CLI behavior
+
+### `init`
+
+- Creates the `data/` directory.
+- Writes a sample `data/build.json` file.
+- Writes an empty `data/cache.json` file.
+
+### `build`
+
+- Loads targets and cache state from disk.
+- Runs the scheduler.
+- Prints each target with either `executed` or `cached`.
+
+## 7. Validation coverage
+
+The current automated tests cover:
+
+- model instantiation
+- hash table insertion and lookup
+- AVL rotations and search
+- JSON persistence roundtrips
+- acyclic and cyclic graph behavior
+- dependency ordering in topological sort
+- clean and fully cached scheduler runs
+
+## 8. Current scope notes
+
+- The implemented CLI includes `init` and `build` only.
+- The scheduler expects the cache file to exist, so the intended first-run flow is `init` followed by `build`.
+- This repository currently documents and ships the completed core implementation rather than future aspirational phases.
