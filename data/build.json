@@ -1,0 +1,33 @@
+[
+  {
+    "ID": "app",
+    "Dependencies": [
+      "lib",
+      "util"
+    ],
+    "FileHash": "hash-app",
+    "IsCached": false
+  },
+  {
+    "ID": "lib",
+    "Dependencies": [
+      "core"
+    ],
+    "FileHash": "hash-lib",
+    "IsCached": false
+  },
+  {
+    "ID": "util",
+    "Dependencies": [
+      "core"
+    ],
+    "FileHash": "hash-util",
+    "IsCached": false
+  },
+  {
+    "ID": "core",
+    "Dependencies": null,
+    "FileHash": "hash-core",
+    "IsCached": false
+  }
+]

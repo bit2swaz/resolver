@@ -1,0 +1,8 @@
+{
+  "Artifacts": {
+    "app": "hash-app",
+    "core": "hash-core",
+    "lib": "hash-lib",
+    "util": "hash-util"
+  }
+}
