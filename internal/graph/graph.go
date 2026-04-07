@@ -64,3 +64,48 @@ func HasCycles(g *models.Graph) error {
 
 	return nil
 }
+
+// TopologicalSort returns a dependency-safe execution order using DFS.
+func TopologicalSort(g *models.Graph) ([]string, error) {
+	visited := make(map[string]bool, len(g.Vertices))
+	onPath := make(map[string]bool, len(g.Vertices))
+	stack := make([]string, 0, len(g.Vertices))
+
+	var dfs func(string) error
+	dfs = func(node string) error {
+		visited[node] = true
+		onPath[node] = true
+
+		for _, dependency := range g.Edges[node] {
+			if onPath[dependency] {
+				return fmt.Errorf("cycle detected involving %s", dependency)
+			}
+
+			if visited[dependency] {
+				continue
+			}
+
+			if err := dfs(dependency); err != nil {
+				return err
+			}
+		}
+
+		onPath[node] = false
+		stack = append(stack, node)
+		return nil
+	}
+
+	for _, vertex := range g.Vertices {
+		if visited[vertex.ID] {
+			continue
+		}
+
+		if err := dfs(vertex.ID); err != nil {
+			return nil, err
+		}
+	}
+
+	order := make([]string, len(stack))
+	copy(order, stack)
+	return order, nil
+}
