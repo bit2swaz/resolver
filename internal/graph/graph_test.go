@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/bit2swaz/resolver/internal/models"
@@ -45,6 +46,21 @@ func TestHasCyclesReturnsErrorForCircularDependency(t *testing.T) {
 	}
 }
 
+func TestHasCyclesReturnsErrorForMissingDependency(t *testing.T) {
+	targets := []*models.Target{
+		{ID: "app", Dependencies: []string{"missing"}},
+	}
+
+	err := HasCycles(BuildGraph(targets))
+	if err == nil {
+		t.Fatal("expected missing dependency error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "missing dependency") {
+		t.Fatalf("expected missing dependency error, got %v", err)
+	}
+}
+
 func TestTopologicalSortPlacesDependenciesBeforeDependents(t *testing.T) {
 	targets := []*models.Target{
 		{ID: "app", Dependencies: []string{"lib", "util"}},
@@ -72,6 +88,32 @@ func TestTopologicalSortPlacesDependenciesBeforeDependents(t *testing.T) {
 	assertBefore(t, positions, "core", "util")
 	assertBefore(t, positions, "lib", "app")
 	assertBefore(t, positions, "util", "app")
+}
+
+func TestTopologicalSortHandlesDisconnectedGraphs(t *testing.T) {
+	targets := []*models.Target{
+		{ID: "frontend", Dependencies: []string{"ui-core"}},
+		{ID: "ui-core", Dependencies: nil},
+		{ID: "worker", Dependencies: []string{"queue"}},
+		{ID: "queue", Dependencies: nil},
+	}
+
+	order, err := TopologicalSort(BuildGraph(targets))
+	if err != nil {
+		t.Fatalf("expected disconnected graph to sort, got %v", err)
+	}
+
+	if len(order) != len(targets) {
+		t.Fatalf("expected %d items in order, got %d", len(targets), len(order))
+	}
+
+	positions := make(map[string]int, len(order))
+	for index, id := range order {
+		positions[id] = index
+	}
+
+	assertBefore(t, positions, "ui-core", "frontend")
+	assertBefore(t, positions, "queue", "worker")
 }
 
 func assertBefore(t *testing.T, positions map[string]int, first, second string) {

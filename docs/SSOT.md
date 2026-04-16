@@ -58,7 +58,8 @@
 6. Run DFS-based topological sorting to produce a dependency-safe order.
 7. Iterate over the ordered targets, checking the hash table cache first.
 8. Mark matching targets as cached; otherwise simulate execution and update the cache state.
-9. Save the updated cache state back to `data/cache.json`.
+9. If a target rebuilds, mark its downstream dependents for rebuild even when their own source hash is unchanged.
+10. Save the updated cache state back to `data/cache.json`.
 
 ## 5. Implemented algorithm details
 
@@ -102,11 +103,15 @@ The current automated tests cover:
 - AVL rotations and search
 - JSON persistence roundtrips
 - acyclic and cyclic graph behavior
+- missing dependency validation
+- disconnected graph ordering
 - dependency ordering in topological sort
 - clean and fully cached scheduler runs
+- dependency-aware partial rebuild behavior
 
 ## 8. Current scope notes
 
 - The implemented CLI includes `init` and `build` only.
 - The scheduler expects the cache file to exist, so the intended first-run flow is `init` followed by `build`.
 - This repository currently documents and ships the completed core implementation rather than future aspirational phases.
+- Benchmark-driven comparison results and the full submission report are documented in `docs/PROJECT_REPORT.md`.

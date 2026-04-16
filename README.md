@@ -8,8 +8,10 @@ Resolver is a Go command-line project that models build targets as a dependency 
 - Loads cached artifact hashes from `data/cache.json`
 - Builds an adjacency-list graph from the targets
 - Detects circular dependencies with DFS
+- Rejects missing dependency references before scheduling begins
 - Produces a dependency-safe execution order with DFS-based topological sorting
 - Checks a hash table cache before simulating execution
+- Rebuilds a changed target and its downstream dependents in the same run
 - Updates both the persisted cache state and an AVL tree used for the project comparison requirement
 
 ## Project layout
@@ -74,9 +76,12 @@ The implementation is covered by package-level tests for:
 - hash table cache operations
 - AVL tree balancing and lookup
 - JSON persistence
-- graph construction and cycle detection
+- graph construction, disconnected graph ordering, and cycle detection
+- missing dependency validation
 - DFS-based topological ordering
-- scheduler behavior for clean and fully cached runs
+- scheduler behavior for clean, fully cached, and partial rebuild runs
+
+Benchmark-based comparison data for the hash table and AVL tree implementations is available in `docs/PROJECT_REPORT.md`.
 
 Run the test suite with:
 
@@ -96,4 +101,4 @@ The core roadmap phases are implemented:
 - scheduler loop
 - CLI wiring
 
-See `docs/SSOT.md` for the current design summary and `docs/ROADMAP.md` for implementation status.
+See `docs/SSOT.md` for the current design summary, `docs/ROADMAP.md` for implementation status, and `docs/PROJECT_REPORT.md` for the full mini-project report.

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bit2swaz/resolver/internal/cache"
@@ -63,6 +64,78 @@ func TestRunMarksTargetsCachedWhenHashesAlreadyExist(t *testing.T) {
 		if !target.IsCached {
 			t.Fatalf("expected %s to be treated as cached on second run", target.ID)
 		}
+	}
+}
+
+func TestRunRebuildsChangedTargetAndItsDependents(t *testing.T) {
+	cachePath := filepath.Join(t.TempDir(), "cache.json")
+	if err := cache.SaveState(cachePath, &models.CacheState{Artifacts: map[string]string{}}); err != nil {
+		t.Fatalf("expected initial cache save to succeed, got %v", err)
+	}
+
+	if err := Run(sampleTargets(), cachePath); err != nil {
+		t.Fatalf("expected first run to succeed, got %v", err)
+	}
+
+	changedTargets := sampleTargets()
+	for _, target := range changedTargets {
+		if target.ID == "util" {
+			target.FileHash = "hash-util-v2"
+		}
+	}
+
+	if err := Run(changedTargets, cachePath); err != nil {
+		t.Fatalf("expected partial rebuild run to succeed, got %v", err)
+	}
+
+	statuses := make(map[string]bool, len(changedTargets))
+	for _, target := range changedTargets {
+		statuses[target.ID] = target.IsCached
+	}
+
+	if !statuses["core"] {
+		t.Fatal("expected core to remain cached when util changes")
+	}
+
+	if !statuses["lib"] {
+		t.Fatal("expected lib to remain cached when util changes")
+	}
+
+	if statuses["util"] {
+		t.Fatal("expected util to rebuild after its hash changes")
+	}
+
+	if statuses["app"] {
+		t.Fatal("expected app to rebuild when a dependency rebuilds")
+	}
+
+	state, err := cache.LoadState(cachePath)
+	if err != nil {
+		t.Fatalf("expected updated cache state to load, got %v", err)
+	}
+
+	if state.Artifacts["util"] != "hash-util-v2" {
+		t.Fatalf("expected updated util hash to persist, got %q", state.Artifacts["util"])
+	}
+}
+
+func TestRunReturnsErrorForMissingDependency(t *testing.T) {
+	cachePath := filepath.Join(t.TempDir(), "cache.json")
+	if err := cache.SaveState(cachePath, &models.CacheState{Artifacts: map[string]string{}}); err != nil {
+		t.Fatalf("expected initial cache save to succeed, got %v", err)
+	}
+
+	targets := []*models.Target{
+		{ID: "app", Dependencies: []string{"missing"}, FileHash: "hash-app"},
+	}
+
+	err := Run(targets, cachePath)
+	if err == nil {
+		t.Fatal("expected missing dependency error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "missing dependency") {
+		t.Fatalf("expected missing dependency error, got %v", err)
 	}
 }
 

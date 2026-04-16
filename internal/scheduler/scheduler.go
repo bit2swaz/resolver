@@ -37,6 +37,7 @@ func Run(targets []*models.Target, cachePath string) error {
 		targetByID[target.ID] = target
 	}
 
+	rebuiltTargets := make(map[string]bool, len(targets))
 	queue := append([]string(nil), order...)
 	for len(queue) > 0 {
 		id := queue[0]
@@ -47,9 +48,18 @@ func Run(targets []*models.Target, cachePath string) error {
 			return fmt.Errorf("missing target definition for %s", id)
 		}
 
+		dependencyRebuilt := false
+		for _, dependency := range target.Dependencies {
+			if rebuiltTargets[dependency] {
+				dependencyRebuilt = true
+				break
+			}
+		}
+
 		cachedHash, ok := hashTable.Get(id)
-		if ok && cachedHash == target.FileHash {
+		if !dependencyRebuilt && ok && cachedHash == target.FileHash {
 			target.IsCached = true
+			rebuiltTargets[id] = false
 			continue
 		}
 
@@ -57,6 +67,7 @@ func Run(targets []*models.Target, cachePath string) error {
 		hashTable.Set(id, target.FileHash)
 		avlRoot = cache.Insert(avlRoot, id, target.FileHash)
 		state.Artifacts[id] = target.FileHash
+		rebuiltTargets[id] = true
 	}
 
 	return cache.SaveState(cachePath, state)
